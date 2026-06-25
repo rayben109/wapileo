@@ -13,8 +13,8 @@ try {
   JSDOM = null;
 }
 
-const html = readFileSync(join(root, "index.html"), "utf8");
-const appSource = readFileSync(join(root, "app.js"), "utf8");
+const html = readFileSync(join(root, "public", "index.html"), "utf8");
+const appSource = readFileSync(join(root, "public", "app.js"), "utf8");
 
 function boot(fetchImpl) {
   const dom = new JSDOM(html, {
@@ -38,7 +38,6 @@ test("renders place cards from the API and escapes hostile content", { skip: !JS
   };
   const dom = boot(async () => ({ ok: true, json: async () => payload }));
   await tick();
-
   const cards = dom.window.document.querySelectorAll("#placesList .place-card");
   assert.equal(cards.length, 2);
   assert.equal(dom.window.document.querySelectorAll("#placesList img[onerror]").length, 0);
@@ -48,7 +47,6 @@ test("renders place cards from the API and escapes hostile content", { skip: !JS
 test("falls back to bundled places and shows the offline note when the API fails", { skip: !JSDOM }, async () => {
   const dom = boot(async () => { throw new Error("network down"); });
   await tick();
-
   const cards = dom.window.document.querySelectorAll("#placesList .place-card");
   assert.equal(cards.length, 6);
   assert.ok(!dom.window.document.querySelector("#offlineNote").classList.contains("hidden"));

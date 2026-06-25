@@ -24,13 +24,10 @@ snapshot so the app always renders.
 
 ```
 .
-├── index.html            # App shell (SEO + social meta, PWA links)
-├── styles.css            # Styles (dark theme, a11y focus, reduced-motion)
-├── app.js                # Front-end logic (fetch + render + report + offline fallback)
-├── sw.js                 # Service worker (offline app shell)
-├── manifest.webmanifest  # PWA manifest
-├── favicon.svg, icon-*.png, apple-touch-icon.png, og-image.png
-├── robots.txt
+├── public/                # Static web root (served by Vercel)
+│   ├── index.html        # App shell (SEO + social meta, PWA links)
+│   ├── styles.css app.js sw.js
+│   └── manifest.webmanifest favicon.svg icon-*.png og-image.png robots.txt
 ├── api/
 │   ├── places.js         # GET  /api/places   -> venues + live vibe score
 │   ├── reports.js        # POST /api/reports  -> record a vibe report
@@ -110,7 +107,7 @@ npm run db:deploy   # apply committed migrations (production)
    ```
    Until the DB is seeded, the site still loads using the bundled fallback venues.
 5. Update the absolute URLs (`https://wapileo.app/...`) in `index.html`
-   (canonical + Open Graph/Twitter) and `robots.txt` to your real domain.
+   (canonical + Open Graph/Twitter) and `public/robots.txt` to your real domain.
 
 ## API reference
 
