@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>WapiLeo - Places, plans, and vibes for today.</title>
+    <meta
+      name="description"
+      content="WapiLeo helps Tanzanians find places, plans, and vibes for today. Live crowd-powered vibe scores for Dar es Salaam."
+    />
+    <meta name="theme-color" content="#08070a" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://wapileo.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="WapiLeo" />
+    <meta property="og:title" content="WapiLeo - Leo twende wapi?" />
+    <meta
+      property="og:description"
+      content="Places, plans, and vibes for today. Live crowd-powered vibe scores for Dar es Salaam."
+    />
+    <meta property="og:url" content="https://wapileo.app/" />
+    <meta property="og:image" content="https://wapileo.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="WapiLeo - Leo twende wapi?" />
+    <meta
+      name="twitter:description"
+      content="Places, plans, and vibes for today. Live crowd-powered vibe scores for Dar es Salaam."
+    />
+    <meta name="twitter:image" content="https://wapileo.app/og-image.png" />
+
+    <!-- Icons + PWA -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WapiLeo" />
+
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div class="topbar">
+          <button class="city-pill" id="cityButton" type="button">
+            <span class="dot"></span>
+            Dar es Salaam
+          </button>
+          <button class="icon-button" id="savedButton" type="button" aria-label="Saved plans">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="brand-lockup">
+          <p class="eyebrow">WapiLeo</p>
+          <h1>Leo twende wapi?</h1>
+          <p>Places, plans, and vibes for today.</p>
+        </div>
+
+        <div class="heat-card">
+          <div>
+            <span class="live-chip">Live sasa</span>
+            <h2>Msasani imewaka</h2>
+            <p>Afrobeats, good food, beach breeze, and zero overthinking.</p>
+          </div>
+          <button class="primary-button" id="planShortcut" type="button">Plan yangu</button>
+        </div>
+      </section>
+
+      <nav class="category-rail" aria-label="Vibe categories">
+        <button class="category active" data-filter="all" type="button" aria-pressed="true">Tonight</button>
+        <button class="category" data-filter="date" type="button" aria-pressed="false">Date Night</button>
+        <button class="category" data-filter="food" type="button" aria-pressed="false">Food</button>
+        <button class="category" data-filter="chill" type="button" aria-pressed="false">Chill</button>
+        <button class="category" data-filter="music" type="button" aria-pressed="false">Music</button>
+        <button class="category" data-filter="games" type="button" aria-pressed="false">Games</button>
+        <button class="category" data-filter="beach" type="button" aria-pressed="false">Beach</button>
+      </nav>
+
+      <section class="quick-panel" id="planner">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Plan fast</p>
+            <h2>Pick the mood. We cook the route.</h2>
+          </div>
+          <button class="ghost-button" id="shufflePlan" type="button">Shuffle</button>
+        </div>
+
+        <div class="plan-controls">
+          <label>
+            Budget
+            <select id="budgetSelect">
+              <option value="budget">Under 40k</option>
+              <option value="mid">40k - 100k</option>
+              <option value="premium">100k+</option>
+            </select>
+          </label>
+          <label>
+            Mood
+            <select id="moodSelect">
+              <option value="romantic">Romantic</option>
+              <option value="fun">Fun</option>
+              <option value="chill">Chill</option>
+              <option value="foodie">Foodie</option>
+            </select>
+          </label>
+        </div>
+
+        <article class="route-card" id="routeCard"></article>
+      </section>
+
+      <section class="places-section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Happening now</p>
+            <h2 id="listTitle">Tonight's heat</h2>
+          </div>
+          <button class="ghost-button" id="sortButton" type="button">Moto first</button>
+        </div>
+        <p class="offline-note hidden" id="offlineNote" role="status">
+          Showing saved vibes - couldn't reach live updates.
+        </p>
+        <div class="places-list" id="placesList" aria-live="polite" aria-busy="true"></div>
+      </section>
+
+      <section class="pulse-section">
+        <div class="pulse-copy">
+          <p class="section-kicker">Crowd powered</p>
+          <h2>Ikoje hapo?</h2>
+          <p>Four taps. No essays. Help the city know where the night is breathing.</p>
+        </div>
+        <button class="primary-button wide" id="openReport" type="button">Report vibe</button>
+      </section>
+    </main>
+
+    <div class="sheet-backdrop hidden" id="sheetBackdrop"></div>
+    <aside class="bottom-sheet hidden" id="reportSheet" role="dialog" aria-modal="true" aria-label="Report the vibe" aria-live="polite">
+      <div class="sheet-grip"></div>
+      <div class="section-head compact">
+        <div>
+          <p class="section-kicker">30 seconds tu</p>
+          <h2>Ikoje hapo?</h2>
+        </div>
+        <button class="icon-button" id="closeReport" type="button" aria-label="Close report">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <label class="sheet-label">
+        Place
+        <select id="placeSelect"></select>
+      </label>
+      <div class="vibe-grid" id="vibeOptions" role="group" aria-label="Choose the vibe level">
+        <button type="button" data-score="20" data-label="Dead" aria-pressed="false">Dead</button>
+        <button type="button" data-score="48" data-label="Inajaa" aria-pressed="false">Inajaa</button>
+        <button type="button" data-score="72" data-label="Kuna vibe" aria-pressed="false">Kuna vibe</button>
+        <button type="button" data-score="94" data-label="Moto sana" aria-pressed="false">Moto sana</button>
+      </div>
+      <button class="primary-button wide" id="submitReport" type="button">Update vibe</button>
+    </aside>
+
+    <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
