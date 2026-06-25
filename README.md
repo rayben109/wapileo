@@ -173,4 +173,4 @@ Edit `lib/seed-data.js` and re-run `npm run db:seed` (upserts by id).
 npm test
 ```
 Covers vibe-scoring math, report validation, the API handler logic (with an
-in-memory DB), and the front-end render/escape/offline-fallback paths (jsdom).
+in-memory DB),  and the front-end render/escape/offline-fallback paths (jsdom).
