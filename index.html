@@ -44,8 +44,8 @@
     <meta name="apple-mobile-web-app-title" content="WapiLeo" />
 
     <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
-    <link rel="stylesheet" href="./styles.css" />
-    <script src="./app.js" defer></script>
+    <link rel="preconnect" href="https://0ec90b57d6e95fcbda19832f.supabase.co" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="app-shell">
@@ -55,11 +55,18 @@
             <span class="dot"></span>
             Dar es Salaam
           </button>
-          <button class="icon-button" id="savedButton" type="button" aria-label="Saved plans">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-          </button>
+          <div class="topbar-actions">
+            <button class="icon-button" id="savedButton" type="button" aria-label="Saved plans">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+            <button class="icon-button" id="feedbackButton" type="button" aria-label="Send feedback">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="brand-lockup">
@@ -87,6 +94,20 @@
         <button class="category" data-filter="games" type="button" aria-pressed="false">Games</button>
         <button class="category" data-filter="beach" type="button" aria-pressed="false">Beach</button>
       </nav>
+
+      <section class="filter-bar" aria-label="Filter by area">
+        <div class="filter-scroll">
+          <button class="area-chip active" data-area="all" type="button" aria-pressed="true">All areas</button>
+          <button class="area-chip" data-area="Masaki" type="button" aria-pressed="false">Masaki</button>
+          <button class="area-chip" data-area="Msasani" type="button" aria-pressed="false">Msasani</button>
+          <button class="area-chip" data-area="Upanga" type="button" aria-pressed="false">Upanga</button>
+          <button class="area-chip" data-area="Sinza" type="button" aria-pressed="false">Sinza</button>
+          <button class="area-chip" data-area="Mikocheni" type="button" aria-pressed="false">Mikocheni</button>
+          <button class="area-chip" data-area="Kariakoo" type="button" aria-pressed="false">Kariakoo</button>
+          <button class="area-chip" data-area="Kivukoni" type="button" aria-pressed="false">Kivukoni</button>
+          <button class="area-chip" data-area="Kawe" type="button" aria-pressed="false">Kawe</button>
+        </div>
+      </section>
 
       <section class="quick-panel" id="planner">
         <div class="section-head">
@@ -142,9 +163,15 @@
         </div>
         <button class="primary-button wide" id="openReport" type="button">Report vibe</button>
       </section>
+
+      <footer class="app-footer">
+        <p>WapiLeo &middot; Leo twende wapi?</p>
+        <button class="footer-link" id="claimVenue" type="button">Are you a venue owner? List your event</button>
+      </footer>
     </main>
 
     <div class="sheet-backdrop hidden" id="sheetBackdrop"></div>
+
     <aside class="bottom-sheet hidden" id="reportSheet" role="dialog" aria-modal="true" aria-label="Report the vibe" aria-live="polite">
       <div class="sheet-grip"></div>
       <div class="section-head compact">
@@ -162,15 +189,93 @@
         Place
         <select id="placeSelect"></select>
       </label>
-      <div class="vibe-grid" id="vibeOptions" role="group" aria-label="Choose the vibe level">
+      <p class="sheet-group-label">Crowd level</p>
+      <div class="vibe-grid" id="crowdOptions" role="group" aria-label="Choose the crowd level">
         <button type="button" data-score="20" data-label="Dead" aria-pressed="false">Dead</button>
-        <button type="button" data-score="48" data-label="Inajaa" aria-pressed="false">Inajaa</button>
-        <button type="button" data-score="72" data-label="Kuna vibe" aria-pressed="false">Kuna vibe</button>
-        <button type="button" data-score="94" data-label="Moto sana" aria-pressed="false">Moto sana</button>
+        <button type="button" data-score="48" data-label="Inajaa" aria-pressed="false">Chill</button>
+        <button type="button" data-score="72" data-label="Kuna vibe" aria-pressed="false">Packed</button>
+        <button type="button" data-score="94" data-label="Moto sana" aria-pressed="false">Overcrowded</button>
+      </div>
+      <p class="sheet-group-label">Music / Vibe</p>
+      <div class="chip-grid" id="musicOptions" role="group" aria-label="Choose the music vibe">
+        <button type="button" data-music="Afrobeats" aria-pressed="false">Afrobeats</button>
+        <button type="button" data-music="Amapiano" aria-pressed="false">Amapiano</button>
+        <button type="button" data-music="Calm" aria-pressed="false">Calm</button>
+        <button type="button" data-music="Live Band" aria-pressed="false">Live Band</button>
+      </div>
+      <p class="sheet-group-label">Entry</p>
+      <div class="chip-grid" id="entryOptions" role="group" aria-label="Choose the entry type">
+        <button type="button" data-entry="Free" aria-pressed="false">Free</button>
+        <button type="button" data-entry="Cover Charge" aria-pressed="false">Cover Charge</button>
       </div>
       <button class="primary-button wide" id="submitReport" type="button">Update vibe</button>
     </aside>
 
+    <aside class="bottom-sheet hidden" id="feedbackSheet" role="dialog" aria-modal="true" aria-label="Send feedback" aria-live="polite">
+      <div class="sheet-grip"></div>
+      <div class="section-head compact">
+        <div>
+          <p class="section-kicker">Quick word?</p>
+          <h2>Feedback / Report bug</h2>
+        </div>
+        <button class="icon-button" id="closeFeedback" type="button" aria-label="Close feedback">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <label class="sheet-label">
+        Type
+        <select id="feedbackKind">
+          <option value="feedback">Feedback</option>
+          <option value="bug">Bug report</option>
+          <option value="idea">Idea</option>
+        </select>
+      </label>
+      <label class="sheet-label">
+        Message
+        <textarea id="feedbackMessage" rows="3" placeholder="What worked? What didn't?"></textarea>
+      </label>
+      <button class="primary-button wide" id="submitFeedback" type="button">Send</button>
+    </aside>
+
+    <aside class="bottom-sheet hidden" id="claimSheet" role="dialog" aria-modal="true" aria-label="List your venue" aria-live="polite">
+      <div class="sheet-grip"></div>
+      <div class="section-head compact">
+        <div>
+          <p class="section-kicker">For venue owners</p>
+          <h2>List your event</h2>
+        </div>
+        <button class="icon-button" id="closeClaim" type="button" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <label class="sheet-label">
+        Venue name
+        <input id="claimVenueName" type="text" placeholder="e.g. Warehouse" />
+      </label>
+      <label class="sheet-label">
+        Your name
+        <input id="claimContactName" type="text" placeholder="Manager / promoter" />
+      </label>
+      <label class="sheet-label">
+        Phone / WhatsApp
+        <input id="claimContactPhone" type="tel" placeholder="+255..." />
+      </label>
+      <label class="sheet-label">
+        Event title (optional)
+        <input id="claimEventTitle" type="text" placeholder="Friday Amapiano night" />
+      </label>
+      <label class="sheet-label">
+        Event details (optional)
+        <textarea id="claimEventDetails" rows="2" placeholder="Lineup, entry, time..."></textarea>
+      </label>
+      <button class="primary-button wide" id="submitClaim" type="button">Submit</button>
+    </aside>
+
     <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

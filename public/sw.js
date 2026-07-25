@@ -1,15 +1,14 @@
 /* WapiLeo service worker.
  * Strategy:
  *   - App shell (html/css/js/icons): cache-first with background refresh.
- *   - API (/api/*): network-only (the app has its own offline fallback data).
+ *   - API / Supabase: network-only (the app has its own offline fallback state).
  * Bump CACHE_VERSION to invalidate old caches on deploy. */
 
-const CACHE_VERSION = "wapileo-v1";
+const CACHE_VERSION = "wapileo-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css",
-  "/app.js",
   "/manifest.webmanifest",
   "/favicon.svg",
   "/icon-192.png",
@@ -43,8 +42,8 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Never cache API responses; let the app handle online/offline state.
-  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
+  // Never cache API/Supabase responses; let the app handle online/offline state.
+  if (url.hostname.endsWith("supabase.co")) {
     return;
   }
 

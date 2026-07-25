@@ -1,7 +1,16 @@
-/* WapiLeo front-end.
- * Places come from the live API (/api/places); vibe reports are shared across
- * users (/api/reports). If the network is unavailable we fall back to a bundled
- * snapshot so the app always renders. Saved spots persist in localStorage. */
+/* WapiLeo front-end (Vite + Supabase).
+ * Places + reports + confirms are crowd-powered and shared across all users
+ * through Supabase. Saved spots persist in localStorage. */
+
+import { supabase } from "./supabase.js";
+import {
+  aggregatePlace,
+  labelForScore,
+  timeAgo,
+  isStale,
+  validateReport,
+  WINDOW_HOURS,
+} from "./scoring.js";
 
 // Static plan templates stay client-side (they are content, not user data).
 const routes = {
@@ -25,22 +34,6 @@ const routes = {
   },
 };
 
-// Offline / first-paint fallback snapshot. Kept in sync with lib/seed-data.js.
-const FALLBACK_PLACES = [
-  { id: "warehouse", name: "Warehouse", area: "Masaki", price: "100k+", line: "Late night, loud fits, Afrobeats, Amapiano, and zero sitting still.", image: "https://images.unsplash.com/photo-1571266028243-d220c6a7edbf?auto=format&fit=crop&w=1200&q=80", score: 95, state: "Imeamka", categories: ["all", "music"], tags: ["Amapiano", "Dress smart", "Late night"], reportCount: 0, live: false },
-  { id: "coral", name: "Coral Beach", area: "Masaki", price: "40k - 100k", line: "Ocean air, cocktails, and date-night photos that do the talking.", image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80", score: 91, state: "Moto sana", categories: ["all", "date", "chill", "beach", "food"], tags: ["Great photos", "Date friendly", "Beach breeze"], reportCount: 0, live: false },
-  { id: "level8", name: "Level 8 Rooftop", area: "Kivukoni", price: "100k+", line: "Rooftop sundowners, DJ sets, and the skyline doing its thing.", image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80", score: 90, state: "Imeamka", categories: ["all", "music", "date", "chill"], tags: ["Rooftop", "Sundowners", "DJ sets"], reportCount: 0, live: false },
-  { id: "akemi", name: "Akemi Revolving Restaurant", area: "Upanga", price: "100k+", line: "Dinner with a slow 360-degree view of the city lights.", image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80", score: 88, state: "Kuna vibe", categories: ["all", "date", "food", "chill"], tags: ["City views", "Fine dining", "Date friendly"], reportCount: 0, live: false },
-  { id: "samaki", name: "Samaki Samaki", area: "Mlimani City", price: "40k - 100k", line: "Dinner, live music, and the table next to you probably knows the DJ.", image: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80", score: 87, state: "Kuna vibe", categories: ["all", "music", "food", "date"], tags: ["Live band", "Dinner", "Inajaa mapema"], reportCount: 0, live: false },
-  { id: "mamboz", name: "Mamboz Corner BBQ", area: "Kariakoo", price: "Under 40k", line: "Legendary grilled mishkaki and the smoke that pulls a crowd.", image: "https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=1200&q=80", score: 84, state: "Moto sana", categories: ["all", "food", "chill"], tags: ["Mishkaki", "Street food", "Budget friendly"], reportCount: 0, live: false },
-  { id: "slipway", name: "The Slipway", area: "Msasani", price: "40k - 100k", line: "Sunset walk, dessert, calm talk, and a view that fixes the plan.", image: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200&q=80", score: 83, state: "Chill tu", categories: ["all", "date", "chill", "beach", "food"], tags: ["Sunset", "Quiet-ish", "Walkable"], reportCount: 0, live: false },
-  { id: "kawe", name: "Kawe Beach", area: "Kawe", price: "40k - 100k", line: "Wide sand, easy waves, and sunsets that end the week right.", image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80", score: 80, state: "Chill tu", categories: ["all", "beach", "chill", "date"], tags: ["Beach day", "Sunset", "Relaxed"], reportCount: 0, live: false },
-  { id: "escape", name: "Escape One", area: "Mikocheni", price: "Under 40k", line: "Games, light food, and an easy hangout when nobody wants pressure.", image: "https://images.unsplash.com/photo-1511882150382-421056c89033?auto=format&fit=crop&w=1200&q=80", score: 78, state: "Inajaa", categories: ["all", "games", "chill", "date"], tags: ["Games", "Low pressure", "Group plan"], reportCount: 0, live: false },
-  { id: "nyama", name: "Moyo Nyama", area: "Sinza", price: "Under 40k", line: "Nyama, football noise, and the kind of plan that becomes a story.", image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80", score: 76, state: "Kuna watu", categories: ["all", "food", "chill"], tags: ["Budget friendly", "Football", "Nyama choma"], reportCount: 0, live: false },
-  { id: "mlimani-bowl", name: "Mlimani Bowling", area: "Mikocheni", price: "40k - 100k", line: "Lanes, arcade noise, and an easy win for indecisive crews.", image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80", score: 73, state: "Inajaa", categories: ["all", "games", "chill"], tags: ["Bowling", "Arcade", "Group plan"], reportCount: 0, live: false },
-  { id: "george-dragon", name: "George & Dragon", area: "Masaki", price: "40k - 100k", line: "Pub pints, big-match nights, and a pool table with history.", image: "https://images.unsplash.com/photo-1537633552985-df8429e8048b?auto=format&fit=crop&w=1200&q=80", score: 71, state: "Kuna watu", categories: ["all", "chill", "food", "games"], tags: ["Pub", "Sports", "Pool table"], reportCount: 0, live: false },
-];
-
 const HOME_LIMIT = 12;
 const SAVED_KEY = "wapileo-saved-places";
 
@@ -50,18 +43,26 @@ const routeCard = document.querySelector("#routeCard");
 const budgetSelect = document.querySelector("#budgetSelect");
 const moodSelect = document.querySelector("#moodSelect");
 const placeSelect = document.querySelector("#placeSelect");
-const sheet = document.querySelector("#reportSheet");
+const reportSheet = document.querySelector("#reportSheet");
+const feedbackSheet = document.querySelector("#feedbackSheet");
+const claimSheet = document.querySelector("#claimSheet");
 const backdrop = document.querySelector("#sheetBackdrop");
 const toast = document.querySelector("#toast");
-const vibeOptions = document.querySelector("#vibeOptions");
+const crowdOptions = document.querySelector("#crowdOptions");
+const musicOptions = document.querySelector("#musicOptions");
+const entryOptions = document.querySelector("#entryOptions");
 const offlineNote = document.querySelector("#offlineNote");
 const submitReport = document.querySelector("#submitReport");
 const savedButton = document.querySelector("#savedButton");
+const feedbackButton = document.querySelector("#feedbackButton");
 
 let places = [];
 let activeFilter = "all";
+let activeArea = "all";
 let showSaved = false;
 let selectedReport = { score: 72, label: "Kuna vibe" };
+let selectedMusic = null;
+let selectedEntry = null;
 let toastTimer;
 
 // --- Helpers ---------------------------------------------------------------
@@ -118,20 +119,38 @@ function toggleSavedPlace(id) {
 // --- Data ------------------------------------------------------------------
 
 async function fetchPlaces() {
-  try {
-    const response = await fetch("/api/places", { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    if (!Array.isArray(data.places) || data.places.length === 0) {
-      throw new Error("Empty response");
-    }
-    places = data.places;
-    setOffline(false);
-  } catch (error) {
-    console.warn("Falling back to bundled places:", error);
-    if (places.length === 0) places = FALLBACK_PLACES;
-    setOffline(true);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - WINDOW_HOURS * 3600 * 1000).toISOString();
+
+  const [
+    { data: placeRows, error: placeError },
+    { data: reportRows, error: reportError },
+    { data: confirmRows, error: confirmError },
+  ] = await Promise.all([
+    supabase.from("places").select("*").order("base_score", { ascending: false }),
+    supabase.from("vibe_reports").select("*").gte("created_at", cutoff),
+    supabase.from("place_confirms").select("*").gte("created_at", cutoff),
+  ]);
+
+  if (placeError || reportError || confirmError) {
+    throw new Error(placeError?.message || reportError?.message || confirmError?.message);
   }
+
+  const reportsByPlace = new Map();
+  for (const r of reportRows || []) {
+    if (!reportsByPlace.has(r.place_id)) reportsByPlace.set(r.place_id, []);
+    reportsByPlace.get(r.place_id).push(r);
+  }
+
+  const confirmsByPlace = new Map();
+  for (const c of confirmRows || []) {
+    if (!confirmsByPlace.has(c.place_id)) confirmsByPlace.set(c.place_id, []);
+    confirmsByPlace.get(c.place_id).push(c);
+  }
+
+  places = (placeRows || []).map((p) =>
+    aggregatePlace(p, reportsByPlace.get(p.id) || [], confirmsByPlace.get(p.id) || [], now),
+  );
 }
 
 function setOffline(isOffline) {
@@ -152,10 +171,15 @@ function visiblePlaces() {
   if (showSaved) {
     return sortedByHeat(places.filter((place) => savedPlaces.has(place.id)));
   }
-  const filtered = sortedByHeat(
-    places.filter((place) => (place.categories || []).includes(activeFilter)),
-  );
-  return activeFilter === "all" ? filtered.slice(0, HOME_LIMIT) : filtered;
+  let filtered = places;
+  if (activeFilter !== "all") {
+    filtered = filtered.filter((place) => (place.categories || []).includes(activeFilter));
+  }
+  if (activeArea !== "all") {
+    filtered = filtered.filter((place) => place.area === activeArea);
+  }
+  const sorted = sortedByHeat(filtered);
+  return activeFilter === "all" && activeArea === "all" ? sorted.slice(0, HOME_LIMIT) : sorted;
 }
 
 function cardMarkup(place) {
@@ -164,12 +188,18 @@ function cardMarkup(place) {
   const reportLine = place.reportCount
     ? `${place.reportCount} live ${place.reportCount === 1 ? "report" : "reports"}`
     : "Tap to set the vibe";
+  const timeBadge = place.live ? timeAgo(place.lastReportAt) : "";
+  const stale = place.live && isStale(place.lastReportAt);
+  const confirmLine = place.confirmCount
+    ? `${place.confirmCount} ${place.confirmCount === 1 ? "confirm" : "confirms"}`
+    : "";
   return `
-    <article class="place-card" data-id="${escapeHtml(place.id)}">
+    <article class="place-card${stale ? " stale" : ""}" data-id="${escapeHtml(place.id)}">
       <img class="place-photo" src="${escapeHtml(place.image)}" alt="${escapeHtml(place.name)} in ${escapeHtml(place.area)}" loading="lazy" decoding="async" width="800" height="600" />
       <button class="bookmark ${saved ? "saved" : ""}" data-bookmark="${escapeHtml(place.id)}" type="button" aria-pressed="${saved}" aria-label="Save ${escapeHtml(place.name)}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
       </button>
+      ${place.live ? `<span class="live-badge${stale ? " stale" : ""}">Live &middot; ${escapeHtml(timeBadge)}</span>` : ""}
       <div class="place-content">
         <div class="place-topline">
           <span class="temp-chip">${escapeHtml(place.state)}</span>
@@ -180,7 +210,7 @@ function cardMarkup(place) {
         <div>
           <h3>${escapeHtml(place.name)}</h3>
           <p class="place-meta">${escapeHtml(place.area)} / ${escapeHtml(place.price)} / ${escapeHtml(place.line)}</p>
-          <p class="place-reports">${escapeHtml(reportLine)}</p>
+          <p class="place-reports">${escapeHtml(reportLine)}${confirmLine ? ` &middot; ${escapeHtml(confirmLine)}` : ""}</p>
         </div>
         <div class="tag-row">
           ${(place.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
@@ -188,6 +218,7 @@ function cardMarkup(place) {
         <div class="card-actions">
           <button class="action-button hot" data-report="${escapeHtml(place.id)}" type="button">Ikoje hapo?</button>
           <button class="action-button go" data-go="${escapeHtml(place.id)}" type="button">Go</button>
+          <button class="action-button confirm" data-confirm="${escapeHtml(place.id)}" type="button">Still hot</button>
           <button class="action-button" data-share="${escapeHtml(place.id)}" type="button">Share</button>
         </div>
       </div>
@@ -199,10 +230,11 @@ function renderPlaces() {
   if (showSaved) {
     listTitle.textContent = "Saved spots";
   } else {
+    const areaLabel = activeArea !== "all" ? ` in ${activeArea}` : "";
     listTitle.textContent =
-      activeFilter === "all"
+      activeFilter === "all" && activeArea === "all"
         ? "Tonight's heat"
-        : `${activeCategory ? activeCategory.textContent.trim() : "Tonight"} picks`;
+        : `${activeCategory ? activeCategory.textContent.trim() : "Tonight"} picks${areaLabel}`;
   }
 
   const items = visiblePlaces();
@@ -212,7 +244,7 @@ function renderPlaces() {
     list.innerHTML = `<p class="empty-state">${
       showSaved
         ? "No saved spots yet. Tap the bookmark on a card to save one."
-        : "No spots in this vibe yet. Try another category."
+        : "No spots in this vibe yet. Try another category or area."
     }</p>`;
     return;
   }
@@ -236,7 +268,7 @@ function renderRoute() {
 }
 
 function renderPlaceOptions() {
-  const source = places.length ? places : FALLBACK_PLACES;
+  const source = places.length ? places : [];
   placeSelect.innerHTML = source
     .map(
       (place) =>
@@ -247,15 +279,15 @@ function renderPlaceOptions() {
 
 // --- Sheet + toast ---------------------------------------------------------
 
-function openSheet(placeId) {
-  renderPlaceOptions();
-  if (placeId) placeSelect.value = placeId;
-  sheet.classList.remove("hidden");
+function openSheet(sheetEl) {
+  sheetEl.classList.remove("hidden");
   backdrop.classList.remove("hidden");
 }
 
-function closeSheet() {
-  sheet.classList.add("hidden");
+function closeSheets() {
+  reportSheet.classList.add("hidden");
+  feedbackSheet.classList.add("hidden");
+  claimSheet.classList.add("hidden");
   backdrop.classList.add("hidden");
 }
 
@@ -286,7 +318,10 @@ async function shareText(text) {
 
 function openDirections(place) {
   const query = encodeURIComponent(`${place.name}, ${place.area}, Dar es Salaam, Tanzania`);
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+  const isApple = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const url = isApple
+    ? `https://maps.apple.com/?q=${query}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${query}`;
   window.open(url, "_blank", "noopener");
 }
 
@@ -313,7 +348,30 @@ function saveRoutePlan(route) {
   }
 }
 
-// --- Reporting (shared via API) -------------------------------------------
+// --- Reporting (shared via Supabase) --------------------------------------
+
+function resetReportSelection() {
+  selectedReport = { score: 72, label: "Kuna vibe" };
+  selectedMusic = null;
+  selectedEntry = null;
+  crowdOptions.querySelectorAll("button").forEach((b) => {
+    b.classList.remove("selected");
+    b.setAttribute("aria-pressed", "false");
+  });
+  musicOptions.querySelectorAll("button").forEach((b) => {
+    b.classList.remove("selected");
+    b.setAttribute("aria-pressed", "false");
+  });
+  entryOptions.querySelectorAll("button").forEach((b) => {
+    b.classList.remove("selected");
+    b.setAttribute("aria-pressed", "false");
+  });
+  const initial = crowdOptions.querySelector('[data-label="Kuna vibe"]');
+  if (initial) {
+    initial.classList.add("selected");
+    initial.setAttribute("aria-pressed", "true");
+  }
+}
 
 async function submitVibeReport() {
   const placeId = placeSelect.value;
@@ -322,28 +380,107 @@ async function submitVibeReport() {
   submitReport.textContent = "Inatuma...";
 
   try {
-    const response = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ placeId, ...selectedReport }),
+    const { error } = await supabase.from("vibe_reports").insert({
+      place_id: placeId,
+      score: selectedReport.score,
+      label: selectedReport.label,
+      music: selectedMusic,
+      entry: selectedEntry,
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
+    if (error) throw new Error(error.message);
 
-    if (data.place) {
-      const index = places.findIndex((item) => item.id === data.place.id);
-      if (index >= 0) places[index] = data.place;
-      else places.push(data.place);
-    }
+    await fetchPlaces();
     renderPlaces();
-    closeSheet();
-    showToast(`${data.place ? data.place.name : "Vibe"} updated: ${selectedReport.label}. City inajua sasa.`);
+    renderPlaceOptions();
+    closeSheets();
+    showToast(`Vibe updated: ${selectedReport.label}. City inajua sasa.`);
   } catch (error) {
     console.warn("Report failed:", error);
     showToast("Haikutuma. Angalia mtandao, jaribu tena.");
   } finally {
     submitReport.disabled = false;
     submitReport.textContent = original;
+  }
+}
+
+async function confirmPlace(placeId) {
+  try {
+    const { error } = await supabase.from("place_confirms").insert({ place_id: placeId });
+    if (error) throw new Error(error.message);
+    await fetchPlaces();
+    renderPlaces();
+    showToast("Confirmed. Still hot.");
+  } catch (error) {
+    console.warn("Confirm failed:", error);
+    showToast("Haikuweza kuthibitisha. Jaribu tena.");
+  }
+}
+
+async function submitFeedback() {
+  const kind = document.querySelector("#feedbackKind").value;
+  const message = document.querySelector("#feedbackMessage").value.trim();
+  if (!message) {
+    showToast("Andika kitu kidogo first.");
+    return;
+  }
+  const btn = document.querySelector("#submitFeedback");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Inatuma...";
+  try {
+    const { error } = await supabase.from("feedback").insert({
+      kind,
+      message,
+      page: window.location.pathname,
+    });
+    if (error) throw new Error(error.message);
+    document.querySelector("#feedbackMessage").value = "";
+    closeSheets();
+    showToast("Asante! Feedback imefika.");
+  } catch (error) {
+    console.warn("Feedback failed:", error);
+    showToast("Haikutuma. Jaribu tena.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function submitClaim() {
+  const venueName = document.querySelector("#claimVenueName").value.trim();
+  const contactName = document.querySelector("#claimContactName").value.trim();
+  const contactPhone = document.querySelector("#claimContactPhone").value.trim();
+  const eventTitle = document.querySelector("#claimEventTitle").value.trim();
+  const eventDetails = document.querySelector("#claimEventDetails").value.trim();
+
+  if (!venueName || !contactName || !contactPhone) {
+    showToast("Jaza jina la venue, jina lako, na simu.");
+    return;
+  }
+  const btn = document.querySelector("#submitClaim");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Inatuma...";
+  try {
+    const { error } = await supabase.from("venue_claims").insert({
+      venue_name: venueName,
+      contact_name: contactName,
+      contact_phone: contactPhone,
+      event_title: eventTitle || null,
+      event_details: eventDetails || null,
+    });
+    if (error) throw new Error(error.message);
+    ["#claimVenueName", "#claimContactName", "#claimContactPhone", "#claimEventTitle", "#claimEventDetails"].forEach(
+      (sel) => (document.querySelector(sel).value = ""),
+    );
+    closeSheets();
+    showToast("Asante! Tutakupatia soon.");
+  } catch (error) {
+    console.warn("Claim failed:", error);
+    showToast("Haikutuma. Jaribu tena.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
@@ -371,6 +508,21 @@ document.querySelectorAll(".category").forEach((button) => {
   });
 });
 
+document.querySelectorAll(".area-chip").forEach((button) => {
+  button.addEventListener("click", () => {
+    exitSavedView();
+    const current = document.querySelector(".area-chip.active");
+    if (current) {
+      current.classList.remove("active");
+      current.setAttribute("aria-pressed", "false");
+    }
+    button.classList.add("active");
+    button.setAttribute("aria-pressed", "true");
+    activeArea = button.dataset.area;
+    renderPlaces();
+  });
+});
+
 document.querySelector("#planShortcut").addEventListener("click", () => {
   document.querySelector("#planner").scrollIntoView({ behavior: "smooth", block: "start" });
 });
@@ -383,26 +535,72 @@ document.querySelector("#shufflePlan").addEventListener("click", () => {
   renderRoute();
 });
 
-document.querySelector("#openReport").addEventListener("click", () => openSheet());
-document.querySelector("#closeReport").addEventListener("click", closeSheet);
-backdrop.addEventListener("click", closeSheet);
+document.querySelector("#openReport").addEventListener("click", () => {
+  resetReportSelection();
+  renderPlaceOptions();
+  openSheet(reportSheet);
+});
+document.querySelector("#closeReport").addEventListener("click", closeSheets);
+backdrop.addEventListener("click", closeSheets);
 budgetSelect.addEventListener("change", renderRoute);
 moodSelect.addEventListener("change", renderRoute);
 
+feedbackButton.addEventListener("click", () => openSheet(feedbackSheet));
+document.querySelector("#closeFeedback").addEventListener("click", closeSheets);
+document.querySelector("#submitFeedback").addEventListener("click", submitFeedback);
+
+document.querySelector("#claimVenue").addEventListener("click", () => openSheet(claimSheet));
+document.querySelector("#closeClaim").addEventListener("click", closeSheets);
+document.querySelector("#submitClaim").addEventListener("click", submitClaim);
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !sheet.classList.contains("hidden")) closeSheet();
+  if (event.key === "Escape") closeSheets();
 });
 
-vibeOptions.addEventListener("click", (event) => {
+crowdOptions.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
-  vibeOptions.querySelectorAll("button").forEach((option) => {
+  crowdOptions.querySelectorAll("button").forEach((option) => {
     option.classList.remove("selected");
     option.setAttribute("aria-pressed", "false");
   });
   button.classList.add("selected");
   button.setAttribute("aria-pressed", "true");
   selectedReport = { score: Number(button.dataset.score), label: button.dataset.label };
+});
+
+musicOptions.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  const pressed = button.getAttribute("aria-pressed") === "true";
+  musicOptions.querySelectorAll("button").forEach((option) => {
+    option.classList.remove("selected");
+    option.setAttribute("aria-pressed", "false");
+  });
+  if (!pressed) {
+    button.classList.add("selected");
+    button.setAttribute("aria-pressed", "true");
+    selectedMusic = button.dataset.music;
+  } else {
+    selectedMusic = null;
+  }
+});
+
+entryOptions.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  const pressed = button.getAttribute("aria-pressed") === "true";
+  entryOptions.querySelectorAll("button").forEach((option) => {
+    option.classList.remove("selected");
+    option.setAttribute("aria-pressed", "false");
+  });
+  if (!pressed) {
+    button.classList.add("selected");
+    button.setAttribute("aria-pressed", "true");
+    selectedEntry = button.dataset.entry;
+  } else {
+    selectedEntry = null;
+  }
 });
 
 submitReport.addEventListener("click", submitVibeReport);
@@ -425,9 +623,18 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const confirmButton = event.target.closest("[data-confirm]");
+  if (confirmButton) {
+    confirmPlace(confirmButton.dataset.confirm);
+    return;
+  }
+
   const reportButton = event.target.closest("[data-report]");
   if (reportButton) {
-    openSheet(reportButton.dataset.report);
+    resetReportSelection();
+    renderPlaceOptions();
+    if (reportButton.dataset.report) placeSelect.value = reportButton.dataset.report;
+    openSheet(reportSheet);
     return;
   }
 
@@ -474,20 +681,31 @@ document.querySelector("#sortButton").addEventListener("click", () => {
 
 // --- Init ------------------------------------------------------------------
 
-const initialVibe = vibeOptions.querySelector('[data-label="Kuna vibe"]');
-if (initialVibe) {
-  initialVibe.classList.add("selected");
-  initialVibe.setAttribute("aria-pressed", "true");
-}
-
+resetReportSelection();
 renderRoute();
-renderPlaceOptions();
 renderSkeleton();
 
-fetchPlaces().then(() => {
-  renderPlaces();
-  renderPlaceOptions();
-});
+fetchPlaces()
+  .then(() => {
+    setOffline(false);
+    renderPlaces();
+    renderPlaceOptions();
+  })
+  .catch(async (error) => {
+    console.warn("Live fetch failed, retrying once:", error);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await fetchPlaces();
+      setOffline(false);
+      renderPlaces();
+      renderPlaceOptions();
+    } catch (retryError) {
+      console.warn("Live fetch failed after retry:", retryError);
+      setOffline(true);
+      list.setAttribute("aria-busy", "false");
+      list.innerHTML = `<p class="empty-state">We couldn't reach the live feed. Tap "Report vibe" to add the first report for tonight.</p>`;
+    }
+  });
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

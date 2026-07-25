@@ -81,6 +81,11 @@ button {
   justify-content: space-between;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 9px;
+}
+
 .city-pill,
 .icon-button,
 .ghost-button,
@@ -754,5 +759,207 @@ select:focus-visible,
 @media (max-width: 370px) {
   .card-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* --- v3: time badges, confirms, area filters, feedback, claim --- */
+
+/* Live time badge on cards */
+.live-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #090909;
+  background: var(--lime);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.live-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #090909;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.live-badge.stale {
+  color: var(--ink);
+  background: rgba(255, 211, 90, 0.85);
+}
+
+.live-badge.stale::before {
+  animation: none;
+  background: var(--sun);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Dim stale cards */
+.place-card.stale .place-photo {
+  filter: grayscale(0.4) brightness(0.8);
+}
+
+/* Area filter bar */
+.filter-bar {
+  margin: 0 0 18px;
+}
+
+.filter-scroll {
+  display: flex;
+  gap: 9px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.area-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.32);
+  font-weight: 850;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.area-chip.active {
+  color: #090909;
+  background: var(--aqua);
+  border-color: var(--aqua);
+}
+
+/* Confirm (Still hot) button */
+.action-button.confirm {
+  color: #090909;
+  background: var(--lime);
+  border-color: rgba(137, 255, 102, 0.6);
+}
+
+.action-button.confirm:hover {
+  background: #7af056;
+}
+
+/* 4-up card actions */
+.card-actions {
+  grid-template-columns: 1fr 0.7fr 0.8fr 0.7fr;
+}
+
+.card-actions .action-button {
+  padding: 0 6px;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sheet group labels + chip grids */
+.sheet-group-label {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-grid button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 850;
+  font-size: 0.85rem;
+}
+
+.chip-grid button.selected {
+  color: #090909;
+  background: var(--lime);
+  border-color: var(--lime);
+}
+
+/* Feedback / claim sheets */
+.bottom-sheet textarea,
+.bottom-sheet input[type="text"],
+.bottom-sheet input[type="tel"] {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.09);
+  outline: none;
+  font: inherit;
+  resize: vertical;
+}
+
+.bottom-sheet textarea {
+  min-height: 70px;
+}
+
+.bottom-sheet textarea:focus-visible,
+.bottom-sheet input:focus-visible {
+  border-color: var(--aqua);
+}
+
+/* Footer */
+.app-footer {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+  padding: 20px 4px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.footer-link {
+  justify-self: center;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--sun);
+  background: rgba(255, 211, 90, 0.08);
+  font-weight: 850;
+  font-size: 0.8rem;
+}
+
+.footer-link:hover {
+  background: rgba(255, 211, 90, 0.16);
+}
+
+@media (max-width: 370px) {
+  .card-actions {
+    grid-template-columns: 1fr 1fr;
   }
 }

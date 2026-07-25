@@ -2,12 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregatePlace,
-  aggregatePlaces,
   labelForScore,
   validateReport,
+  timeAgo,
+  isStale,
   WINDOW_HOURS,
   ALLOWED_VIBES,
-} from "../lib/scoring.js";
+} from "../src/scoring.js";
 
 const basePlace = {
   id: "coral",
@@ -16,8 +17,8 @@ const basePlace = {
   price: "40k - 100k",
   line: "Ocean air.",
   image: "img",
-  baseScore: 80,
-  baseState: "Kuna vibe",
+  base_score: 80,
+  base_state: "Kuna vibe",
   categories: ["all", "date"],
   tags: ["Beach breeze"],
 };
@@ -39,11 +40,12 @@ test("ALLOWED_VIBES is the fixed submission set", () => {
 });
 
 test("no recent reports falls back to curated base", () => {
-  const result = aggregatePlace(basePlace, [], new Date());
+  const result = aggregatePlace(basePlace, [], [], new Date());
   assert.equal(result.score, 80);
   assert.equal(result.state, "Kuna vibe");
   assert.equal(result.live, false);
   assert.equal(result.reportCount, 0);
+  assert.equal(result.confirmCount, 0);
   assert.equal(result.lastReportAt, null);
 });
 
@@ -51,7 +53,8 @@ test("a fresh hot report pulls the score up but is tempered by the prior", () =>
   const now = new Date("2026-06-25T20:00:00Z");
   const result = aggregatePlace(
     basePlace,
-    [{ score: 94, label: "Moto sana", createdAt: minutesAgo(now, 5) }],
+    [{ score: 94, label: "Moto sana", created_at: minutesAgo(now, 5) }],
+    [],
     now,
   );
   assert.ok(result.score > 80, "score should rise above base");
@@ -65,7 +68,8 @@ test("reports older than the window are ignored", () => {
   const now = new Date("2026-06-25T20:00:00Z");
   const result = aggregatePlace(
     basePlace,
-    [{ score: 20, label: "Dead", createdAt: minutesAgo(now, (WINDOW_HOURS + 1) * 60) }],
+    [{ score: 20, label: "Dead", created_at: minutesAgo(now, (WINDOW_HOURS + 1) * 60) }],
+    [],
     now,
   );
   assert.equal(result.score, 80);
@@ -78,17 +82,19 @@ test("recency weighting favours newer reports", () => {
   const freshHot = aggregatePlace(
     basePlace,
     [
-      { score: 94, label: "Moto sana", createdAt: minutesAgo(now, 2) },
-      { score: 20, label: "Dead", createdAt: minutesAgo(now, 290) },
+      { score: 94, label: "Moto sana", created_at: minutesAgo(now, 2) },
+      { score: 20, label: "Dead", created_at: minutesAgo(now, 290) },
     ],
+    [],
     now,
   );
   const freshCold = aggregatePlace(
     basePlace,
     [
-      { score: 20, label: "Dead", createdAt: minutesAgo(now, 2) },
-      { score: 94, label: "Moto sana", createdAt: minutesAgo(now, 290) },
+      { score: 20, label: "Dead", created_at: minutesAgo(now, 2) },
+      { score: 94, label: "Moto sana", created_at: minutesAgo(now, 290) },
     ],
+    [],
     now,
   );
   assert.ok(
@@ -97,29 +103,31 @@ test("recency weighting favours newer reports", () => {
   );
 });
 
-test("scores are clamped to 0..100", () => {
-  const now = new Date();
-  const hot = aggregatePlace({ ...basePlace, baseScore: 100 }, [
-    { score: 94, label: "Moto sana", createdAt: now },
-  ], now);
-  assert.ok(hot.score <= 100);
-  const cold = aggregatePlace({ ...basePlace, baseScore: 0 }, [
-    { score: 20, label: "Dead", createdAt: now },
-  ], now);
-  assert.ok(cold.score >= 0);
-});
-
-test("aggregatePlaces sorts hottest first", () => {
-  const now = new Date();
-  const out = aggregatePlaces(
+test("confirms are counted within the window", () => {
+  const now = new Date("2026-06-25T20:00:00Z");
+  const result = aggregatePlace(
+    basePlace,
+    [{ score: 72, label: "Kuna vibe", created_at: minutesAgo(now, 10) }],
     [
-      { ...basePlace, id: "low", baseScore: 60, reports: [] },
-      { ...basePlace, id: "high", baseScore: 95, reports: [] },
-      { ...basePlace, id: "mid", baseScore: 78, reports: [] },
+      { created_at: minutesAgo(now, 5) },
+      { created_at: minutesAgo(now, 20) },
+      { created_at: minutesAgo(now, (WINDOW_HOURS + 1) * 60) },
     ],
     now,
   );
-  assert.deepEqual(out.map((p) => p.id), ["high", "mid", "low"]);
+  assert.equal(result.confirmCount, 2);
+});
+
+test("scores are clamped to 0..100", () => {
+  const now = new Date();
+  const hot = aggregatePlace({ ...basePlace, base_score: 100 }, [
+    { score: 94, label: "Moto sana", created_at: now },
+  ], [], now);
+  assert.ok(hot.score <= 100);
+  const cold = aggregatePlace({ ...basePlace, base_score: 0 }, [
+    { score: 20, label: "Dead", created_at: now },
+  ], [], now);
+  assert.ok(cold.score >= 0);
 });
 
 test("validateReport accepts allowed vibes and trims placeId", () => {
@@ -134,4 +142,19 @@ test("validateReport rejects bad input", () => {
   assert.equal(validateReport({ score: 72, label: "Kuna vibe" }).ok, false);
   assert.equal(validateReport({ placeId: "x", score: 50, label: "Kuna vibe" }).ok, false);
   assert.equal(validateReport({ placeId: "x", score: 72, label: "Wrong" }).ok, false);
+});
+
+test("timeAgo formats recent timestamps", () => {
+  const now = new Date("2026-06-25T20:00:00Z");
+  assert.equal(timeAgo(undefined, now), "");
+  assert.equal(timeAgo(now.toISOString(), now), "just now");
+  assert.equal(timeAgo(minutesAgo(now, 12).toISOString(), now), "12 mins ago");
+  assert.equal(timeAgo(minutesAgo(now, 90).toISOString(), now), "Updated 2h ago");
+});
+
+test("isStale flags reports older than 4 hours", () => {
+  const now = new Date("2026-06-25T20:00:00Z");
+  assert.equal(isStale(undefined, now), false);
+  assert.equal(isStale(minutesAgo(now, 30).toISOString(), now), false);
+  assert.equal(isStale(minutesAgo(now, 300).toISOString(), now), true);
 });

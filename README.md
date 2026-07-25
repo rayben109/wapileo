@@ -5,7 +5,7 @@
 WapiLeo is a mobile-first web app for discovering where the night is breathing in
 Dar es Salaam. Browse venues by vibe, build a quick date/night plan, and report
 the live "vibe" of a spot. Reports are **crowd-powered and shared across all
-users** through a small API backed by Postgres.
+users** through Supabase.
 
 ---
 
@@ -13,164 +13,92 @@ users** through a small API backed by Postgres.
 
 | Layer | Tech |
 | --- | --- |
-| Front-end | Static HTML / CSS / vanilla JS (no build step), installable PWA with offline support |
-| API | Vercel Serverless Functions (`/api/*`, Node 18+ ESM) |
-| Database | PostgreSQL via Prisma ORM |
-| Hosting | Vercel |
+| Front-end | Vite + vanilla JS (no framework), installable PWA with offline support |
+| Database | PostgreSQL via Supabase (places, vibe_reports, place_confirms, venue_claims, feedback) |
+| Hosting | Vite build → static `dist/` |
 
-The front-end fetches venues from `GET /api/places` and submits reports to
-`POST /api/reports`. If the API is unreachable it falls back to a bundled
-snapshot so the app always renders.
+The front-end reads places + recent reports + confirms from Supabase and
+aggregates the live vibe score client-side. If the network is unavailable it
+shows a clear, friendly offline state instead of an error.
 
 ```
 .
-├── public/                # Static web root (served by Vercel)
-│   ├── index.html        # App shell (SEO + social meta, PWA links)
-│   ├── styles.css app.js sw.js
-│   └── manifest.webmanifest favicon.svg icon-*.png og-image.png robots.txt
-├── api/
-│   ├── places.js         # GET  /api/places   -> venues + live vibe score
-│   ├── reports.js        # POST /api/reports  -> record a vibe report
-│   └── health.js         # GET  /api/health   -> DB readiness probe
-├── lib/
-│   ├── prisma.js         # Lazy Prisma client singleton (serverless-safe)
-│   ├── scoring.js        # Pure vibe-scoring + validation logic (unit tested)
-│   └── seed-data.js      # Canonical venue seed data
-├── prisma/
-│   ├── schema.prisma     # Place + VibeReport models
-│   └── seed.js           # Idempotent seeding
-├── test/                 # node:test suites (logic + jsdom front-end)
-├── vercel.json           # Security headers, caching, function config
-└── .env.example
+├── index.html            # App shell (SEO + social meta, PWA links)
+├── vite.config.js
+├── src/
+│   ├── main.js           # App logic: live feed, filters, reporting, confirms, feedback, claims
+│   ├── scoring.js        # Pure vibe-scoring + validation + time-ago logic (unit tested)
+│   └── supabase.js       # Supabase client singleton
+├── public/               # Static assets served by Vite
+│   ├── styles.css sw.js manifest.webmanifest favicon.svg icon-*.png og-image.png robots.txt
+├── test/                 # node:test suites (scoring + HTML structure)
+└── supabase/functions/   # Edge functions (if needed later)
 ```
 
 ---
 
-## Prerequisites
-
-- Node.js 18.18+
-- A PostgreSQL database (see options below)
-- [Vercel CLI](https://vercel.com/docs/cli) (`npm i -g vercel`) for local dev/deploy
-
-## Database options
-
-Any Postgres works. Recommended on Vercel:
-
-- **Prisma Postgres** (Vercel Marketplace) — built-in connection pooling, ideal for serverless.
-- **Neon** — serverless Postgres with a pooled connection string.
-- **Supabase** — provides both a pooled and a direct URL.
-
-You need two connection strings:
-
-- `DATABASE_URL` — the **pooled** URL used by the app at runtime.
-- `DIRECT_URL` — a **direct** (non-pooled) URL used by `prisma migrate`.
-  If you are not using a pooler, set it equal to `DATABASE_URL`.
-
 ## Local development
 
 ```bash
-# 1. Install dependencies (runs `prisma generate` automatically)
 npm install
-
-# 2. Configure env
-cp .env.example .env        # then edit DATABASE_URL / DIRECT_URL
-
-# 3. Create the schema in your database + seed it
-npm run db:migrate -- --name init   # creates prisma/migrations and applies it
-npm run db:seed
-
-# 4. Run locally (serves static files + /api functions)
-npm run dev                 # vercel dev  ->  http://localhost:3000
+npm run dev      # http://localhost:5173
+npm test         # run the test suite (node:test)
+npm run build    # production build to dist/
 ```
 
-Useful scripts:
+Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are
+pre-populated in `.env`.
 
-```bash
-npm test            # run the test suite (node:test)
-npm run db:studio   # open Prisma Studio
-npm run db:push     # push schema without migration files (quick prototyping)
-npm run db:deploy   # apply committed migrations (production)
-```
+## Database
 
-## Deploy to Vercel
+The schema lives in Supabase and was applied via the Supabase migration tool.
+Tables (all single-tenant, no auth, public/shared):
 
-1. Push this repo to GitHub/GitLab and **Import** it in Vercel
-   (Framework preset: **Other** — `vercel.json` already configures everything).
-2. In **Project → Settings → Environment Variables**, add `DATABASE_URL` and
-   `DIRECT_URL` for the Production (and Preview) environments.
-3. Deploy. The build runs `prisma generate` automatically (`vercel-build`).
-4. Initialize the database **once** against production:
-   ```bash
-   # from your machine, with prod env vars loaded:
-   DATABASE_URL=... DIRECT_URL=... npx prisma migrate deploy
-   DATABASE_URL=... npm run db:seed
-   ```
-   Until the DB is seeded, the site still loads using the bundled fallback venues.
-5. Update the absolute URLs (`https://wapileo.app/...`) in `index.html`
-   (canonical + Open Graph/Twitter) and `public/robots.txt` to your real domain.
+- `places` — curated venues (12 seeded Dar es Salaam spots)
+- `vibe_reports` — crowd vibe reports (score, label, music, entry)
+- `place_confirms` — "Still hot" upvotes to verify reports
+- `venue_claims` — B2B intake for venue owners to list events
+- `feedback` — in-app feedback / bug reports
 
-## API reference
-
-### `GET /api/places`
-Returns all venues with a crowd-aggregated live vibe score.
-```json
-{
-  "places": [
-    { "id": "warehouse", "name": "Warehouse", "area": "Masaki",
-      "score": 95, "state": "Imeamka", "reportCount": 3, "live": true,
-      "categories": ["all","music"], "tags": ["Amapiano"], "price": "100k+",
-      "line": "...", "image": "https://...", "lastReportAt": "..." }
-  ],
-  "windowHours": 6,
-  "generatedAt": "2026-06-25T20:00:00.000Z"
-}
-```
-
-### `POST /api/reports`
-Records a vibe report and returns the venue's updated score.
-```json
-// request body
-{ "placeId": "warehouse", "score": 94, "label": "Moto sana" }
-```
-`score`/`label` must match one of the allowed vibes
-(`20 Dead`, `48 Inajaa`, `72 Kuna vibe`, `94 Moto sana`).
-Returns `201` with `{ "place": { ... } }`, or `400`/`404` on invalid input.
-
-### `GET /api/health`
-Returns `{ "status": "ok" }` (200) if the database is reachable, else `503`.
+RLS is enabled on every table with `anon, authenticated` policies for the
+public/shared data model.
 
 ## How the live score works
 
-Each venue has a curated `baseScore`. Recent reports (last **6 hours**) are
+Each venue has a curated `base_score`. Recent reports (last **6 hours**) are
 blended in with **time decay** (a report loses half its weight every 3 hours)
 plus a small prior on the base score, so a single report nudges the score
-without wildly swinging it. See `lib/scoring.js` (fully unit-tested).
+without wildly swinging it. See `src/scoring.js` (fully unit-tested).
 
-## Production hardening included
+Reports older than **4 hours** are marked stale and dimmed in the UI, with a
+visible "Updated Xh ago" time badge on each live card.
 
-- **Security headers** via `vercel.json`: CSP, HSTS, `X-Content-Type-Options`,
-  `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`.
-- **XSS-safe rendering**: all dynamic/DB content is HTML-escaped before insertion.
-- **Input validation** on all writes; method guards and JSON error responses.
+## Features
+
+- **Live feed**: 12 curated venues with crowd-powered vibe scores, time badges,
+  and "Still hot" confirmation voting.
+- **Frictionless reporting**: 4-tap categories — Crowd level (Dead / Chill /
+  Packed / Overcrowded), Music (Afrobeats / Amapiano / Calm / Live Band), Entry
+  (Free / Cover Charge).
+- **Filters**: vibe category rail (Tonight, Date, Food, Chill, Music, Games,
+  Beach) + area chips (Masaki, Msasani, Upanga, Sinza, Mikocheni, Kariakoo,
+  Kivukoni, Kawe).
+- **Map deep links**: one-tap "Go" opens Apple Maps on iOS or Google Maps
+  directions elsewhere.
+- **Save / bookmark**: localStorage bookmarks for building a list before
+  heading out.
+- **Plan builder**: budget + mood → curated route, with shuffle / share / save.
+- **Feedback widget**: in-app feedback / bug report form (stored in Supabase).
+- **Venue claiming**: "Are you a venue owner? List your event" link captures
+  B2B leads into Supabase.
 - **PWA**: installable, offline app shell via service worker.
-- **SEO/social**: title, description, canonical, Open Graph + Twitter cards, favicon/icons.
-- **Performance**: lazy-loaded venue images with width/height, CDN caching headers, preconnect.
-- **Accessibility**: visible focus styles, `aria-pressed`/dialog roles, reduced-motion support.
-- **Resilience**: serverless-safe Prisma singleton; front-end offline fallback.
-
-### Recommended next steps
-- Add **rate limiting** to `POST /api/reports` (e.g. Vercel KV / Upstash) to prevent abuse.
-- Add a venue-admin flow (currently venues are managed via `prisma/seed.js`).
-- Generate a `sitemap.xml` (referenced by `robots.txt`).
-
-## Updating venues
-
-Edit `lib/seed-data.js` and re-run `npm run db:seed` (upserts by id).
+- **Resilience**: friendly offline state; live feed retries once before
+  falling back.
 
 ## Testing
 
 ```bash
 npm test
 ```
-Covers vibe-scoring math, report validation, the API handler logic (with an
-in-memory DB),  and the front-end render/escape/offline-fallback paths (jsdom).
+Covers vibe-scoring math, report validation, time-ago formatting, stale
+detection, and the front-end HTML structure.
